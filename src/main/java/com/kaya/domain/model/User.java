@@ -2,6 +2,7 @@ package com.kaya.domain.model;
 
 import com.kaya.domain.model.enums.AuthMethod;
 import com.kaya.domain.model.enums.UserType;
+import io.quarkus.hibernate.reactive.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -10,9 +11,7 @@ import lombok.AllArgsConstructor;
 import org.eclipse.microprofile.graphql.Description;
 import org.eclipse.microprofile.graphql.NonNull;
 
-import java.security.Principal;
 import java.time.LocalDate;
-import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -21,8 +20,9 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Table(name = "users") // Utiliser un nom de table différent pour éviter les conflits
 @Description("Represents a user in the system")
-public abstract class User {
+public abstract class User extends PanacheEntityBase {
     @Id
     @GeneratedValue
     @NonNull
