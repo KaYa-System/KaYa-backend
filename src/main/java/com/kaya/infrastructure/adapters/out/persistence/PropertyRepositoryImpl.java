@@ -4,7 +4,8 @@ import com.kaya.application.port.out.PropertyRepository;
 import com.kaya.domain.model.Property;
 import com.kaya.application.dto.PropertySearchCriteriaDTO;
 import io.quarkus.hibernate.reactive.panache.PanacheRepositoryBase;
-import io.quarkus.panache.common.Parameters;
+import io.quarkus.panache.common.Page;
+import io.quarkus.panache.common.Sort;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 
@@ -12,18 +13,18 @@ import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
-public class PropertyRepositoryImpl implements PropertyRepository,  PanacheRepositoryBase<Property, UUID> {
+public class PropertyRepositoryImpl implements PropertyRepository, PanacheRepositoryBase<Property, UUID> {
 
     @Override
     public Uni<Property> findById(UUID id) {
-        return PanacheRepositoryBase.super.findById(id);
+        return findById(id);
     }
 
     @Override
     public Uni<List<Property>> search(PropertySearchCriteriaDTO criteria) {
-        String query = buildSearchQuery(criteria);
-        Parameters parameters = buildSearchParameters(criteria);
-        return find(query, parameters).list();
+        return find(buildQuery(criteria), buildParameters(criteria))
+                .page(Page.of(criteria.getPage(), criteria.getPageSize()))
+                .list();
     }
 
     @Override
@@ -36,35 +37,39 @@ public class PropertyRepositoryImpl implements PropertyRepository,  PanacheRepos
         return deleteById(id).replaceWithVoid();
     }
 
-    private String buildSearchQuery(PropertySearchCriteriaDTO criteria) {
-        // Implement query building logic based on criteria
-        // This is a simplified example
-        StringBuilder queryBuilder = new StringBuilder("from Property where 1=1");
+    private String buildQuery(PropertySearchCriteriaDTO criteria) {
+        StringBuilder query = new StringBuilder("1=1");
+        if (criteria.getKeyword() != null) {
+            query.append(" and (lower(title) like lower(:keyword) or lower(description) like lower(:keyword))");
+        }
         if (criteria.getPropertyTypes() != null && !criteria.getPropertyTypes().isEmpty()) {
-            queryBuilder.append(" and type in :types");
+            query.append(" and type in (:types)");
+        }
+        if (criteria.getCity() != null) {
+            query.append(" and lower(address.city) = lower(:city)");
+        }
+        if (criteria.getCountry() != null) {
+            query.append(" and lower(address.country) = lower(:country)");
         }
         if (criteria.getMinPrice() != null) {
-            queryBuilder.append(" and price >= :minPrice");
+            query.append(" and price >= :minPrice");
         }
         if (criteria.getMaxPrice() != null) {
-            queryBuilder.append(" and price <= :maxPrice");
+            query.append(" and price <= :maxPrice");
         }
         // Add more conditions as needed
-        return queryBuilder.toString();
+        return query.toString();
     }
 
-    private Parameters buildSearchParameters(PropertySearchCriteriaDTO criteria) {
-        Parameters parameters = new Parameters();
-        if (criteria.getPropertyTypes() != null && !criteria.getPropertyTypes().isEmpty()) {
-            parameters.and("types", criteria.getPropertyTypes());
-        }
-        if (criteria.getMinPrice() != null) {
-            parameters.and("minPrice", criteria.getMinPrice());
-        }
-        if (criteria.getMaxPrice() != null) {
-            parameters.and("maxPrice", criteria.getMaxPrice());
-        }
-        // Add more parameters as needed
-        return parameters;
+    private Object[] buildParameters(PropertySearchCriteriaDTO criteria) {
+        return new Object[] {
+                "keyword", "%" + criteria.getKeyword() + "%",
+                "types", criteria.getPropertyTypes(),
+                "city", criteria.getCity(),
+                "country", criteria.getCountry(),
+                "minPrice", criteria.getMinPrice(),
+                "maxPrice", criteria.getMaxPrice()
+                // Add more parameters as needed
+        };
     }
 }
