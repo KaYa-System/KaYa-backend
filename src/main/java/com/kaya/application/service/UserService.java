@@ -8,6 +8,7 @@ import com.kaya.domain.model.IndividualUser;
 import com.kaya.domain.model.CorporateUser;
 import com.kaya.domain.model.enums.AuthMethod;
 import com.kaya.domain.model.enums.UserType;
+import com.kaya.domain.exception.DomainException;
 import com.kaya.infrastructure.external.OTPService;
 import com.kaya.infrastructure.external.ExternalAuthService;
 import io.smallrye.mutiny.Uni;
@@ -34,10 +35,9 @@ class UserService implements CreateUserUseCase, VerifyPhoneNumberUseCase, SetUse
         return userRepository.findByPhoneNumber(phoneNumber)
                 .onItem().transform(Unchecked.function(user -> {
                     if (user instanceof IndividualUser && ((IndividualUser) user).getPinCode().equals(pinCode)) {
-                        // Générer et retourner un token JWT
                         return generateJwtToken(user);
                     } else {
-                        throw new SecurityException("Invalid credentials");
+                        throw new DomainException("Invalid credentials", DomainException.ErrorCode.UNAUTHORIZED_ACCESS);
                     }
                 }));
     }
@@ -46,26 +46,33 @@ class UserService implements CreateUserUseCase, VerifyPhoneNumberUseCase, SetUse
     public Uni<String> authenticateWithExternalProvider(AuthMethod authMethod, String externalToken) {
         return externalAuthService.validateToken(authMethod, externalToken)
                 .onItem().transformToUni(externalId -> userRepository.findByExternalId(authMethod, externalId))
-                .onItem().transform(this::generateJwtToken);
+                .onItem().transform(this::generateJwtToken)
+                .onFailure().transform(e -> new DomainException("Authentication failed", DomainException.ErrorCode.UNAUTHORIZED_ACCESS));
     }
 
     @Override
     public Uni<User> completeProfile(UUID userId, UserProfileDTO profileData) {
         return userRepository.findById(userId)
+                .onItem().ifNull().failWith(() -> new DomainException("User not found", DomainException.ErrorCode.ENTITY_NOT_FOUND))
                 .onItem().transform(user -> {
                     updateUserFromProfileData(user, profileData);
                     return user;
                 })
-                .onItem().transformToUni(userRepository::save);
+                .onItem().transformToUni(userRepository::save)
+                .onFailure().transform(e -> new DomainException("Failed to update profile", DomainException.ErrorCode.GENERAL_ERROR));
     }
 
     @Override
-    public Uni<User> createIndividualUser(String phoneNumber, UserType type) {
+    public Uni<User> createIndividualUser(String firstName, String lastName, String email, String phoneNumber, UserType type) {
         IndividualUser user = new IndividualUser();
+        user.setFirstName(firstName);
+        user.setLastName(lastName);
+        user.setEmail(email);
         user.setPhoneNumber(phoneNumber);
         user.setType(type);
         user.setAuthMethod(AuthMethod.PHONE);
-        return userRepository.save(user);
+        return userRepository.save(user)
+                .onFailure().transform(e -> new DomainException("Failed to create user", DomainException.ErrorCode.GENERAL_ERROR));
     }
 
     @Override
@@ -75,36 +82,45 @@ class UserService implements CreateUserUseCase, VerifyPhoneNumberUseCase, SetUse
         user.setType(type);
         user.setAuthMethod(authMethod);
         user.setExternalId(externalId);
-        return userRepository.save(user);
+        return userRepository.save(user)
+                .onFailure().transform(e -> new DomainException("Failed to create user", DomainException.ErrorCode.GENERAL_ERROR));
     }
 
     @Override
-    public Uni<User> createCorporateUser(String email, UserType type, String companyName, String companyRegistrationNumber) {
+    public Uni<User> createCorporateUser(String firstName, String lastName, String email, String phoneNumber, UserType type, String companyName, String registrationNumber) {
         CorporateUser user = new CorporateUser();
+        user.setFirstName(firstName);
+        user.setLastName(lastName);
         user.setEmail(email);
+        user.setPhoneNumber(phoneNumber);
         user.setType(type);
+        user.setAuthMethod(AuthMethod.PHONE);
         user.setCompanyName(companyName);
-        user.setCompanyRegistrationNumber(companyRegistrationNumber);
-        return userRepository.save(user);
+        user.setCompanyRegistrationNumber(registrationNumber);
+        return userRepository.save(user)
+                .onFailure().transform(e -> new DomainException("Failed to create corporate user", DomainException.ErrorCode.GENERAL_ERROR));
     }
 
     @Override
     public Uni<User> setPinCode(UUID userId, String pinCode) {
         return userRepository.findById(userId)
+                .onItem().ifNull().failWith(() -> new DomainException("User not found", DomainException.ErrorCode.ENTITY_NOT_FOUND))
                 .onItem().transform(Unchecked.function(user -> {
                     if (user instanceof IndividualUser) {
                         ((IndividualUser) user).setPinCode(pinCode);
                         return user;
                     } else {
-                        throw new IllegalArgumentException("PIN can only be set for individual users");
+                        throw new DomainException("PIN can only be set for individual users", DomainException.ErrorCode.INVALID_INPUT);
                     }
                 }))
-                .onItem().transformToUni(userRepository::save);
+                .onItem().transformToUni(userRepository::save)
+                .onFailure().transform(e -> new DomainException("Failed to set PIN", DomainException.ErrorCode.GENERAL_ERROR));
     }
 
     @Override
     public Uni<Boolean> sendOTP(String phoneNumber) {
-        return otpService.generateAndSendOTP(phoneNumber);
+        return otpService.generateAndSendOTP(phoneNumber)
+                .onFailure().transform(e -> new DomainException("Failed to send OTP", DomainException.ErrorCode.GENERAL_ERROR));
     }
 
     @Override
@@ -113,6 +129,7 @@ class UserService implements CreateUserUseCase, VerifyPhoneNumberUseCase, SetUse
                 .onItem().transformToUni(isValid -> {
                     if (isValid) {
                         return userRepository.findByPhoneNumber(phoneNumber)
+                                .onItem().ifNull().failWith(() -> new DomainException("User not found", DomainException.ErrorCode.ENTITY_NOT_FOUND))
                                 .onItem().transform(user -> {
                                     user.setVerified(true);
                                     return user;
@@ -122,7 +139,8 @@ class UserService implements CreateUserUseCase, VerifyPhoneNumberUseCase, SetUse
                     } else {
                         return Uni.createFrom().item(false);
                     }
-                });
+                })
+                .onFailure().transform(e -> new DomainException("Failed to verify OTP", DomainException.ErrorCode.GENERAL_ERROR));
     }
 
     private String generateJwtToken(User user) {

@@ -6,10 +6,12 @@ import com.kaya.domain.model.enums.AuthMethod;
 import io.quarkus.hibernate.reactive.panache.PanacheRepositoryBase;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import java.util.UUID;
 
 @ApplicationScoped
+@Tag(name = "User Repository", description = "User data persistence operations")
 public class UserRepositoryImpl implements UserRepository, PanacheRepositoryBase<User, UUID> {
 
     @Override
@@ -35,7 +37,7 @@ public class UserRepositoryImpl implements UserRepository, PanacheRepositoryBase
     @Override
     public Uni<User> save(User user) {
         if (user.getId() == null) {
-            return persist(user).map(v -> user);
+            return persistAndFlush(user).map(v -> user);
         } else {
             return getSession()
                     .flatMap(session -> session.merge(user))

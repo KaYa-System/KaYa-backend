@@ -44,6 +44,10 @@
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-openapi</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
             <artifactId>quarkus-junit5</artifactId>
             <scope>test</scope>
         </dependency>
@@ -56,11 +60,11 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>1.18.34</version>
-            <scope>provided</scope>
+            <scope>provided</scope> <!-- Vérifiez la dernière version disponible -->
         </dependency>
         <dependency>
             <groupId>jakarta.validation</groupId>
-            <artifactId>jakarta.validation-api</artifactId> <!-- Vérifiez la dernière version disponible -->
+            <artifactId>jakarta.validation-api</artifactId>
         </dependency>
         <dependency>
             <groupId>com.googlecode.libphonenumber</groupId>
