@@ -6,6 +6,7 @@ import com.kaya.application.dto.UserProfileDTO;
 import com.kaya.application.dto.VerifyPhoneDTO;
 import com.kaya.application.port.in.user.*;
 import com.kaya.domain.model.User;
+import com.kaya.domain.model.enums.UserType;
 import io.smallrye.mutiny.Uni;
 import org.eclipse.microprofile.graphql.*;
 
@@ -30,7 +31,25 @@ public class UserGraphQLResource {
     @Mutation
     @Description("Create a new user")
     public Uni<User> createUser(@Name("user") CreateUserDTO createUserDTO) {
-        return createUserUseCase.createIndividualUser(createUserDTO.getPhoneNumber(), createUserDTO.getType());
+        if (createUserDTO.getType() == UserType.BUYER || createUserDTO.getType() == UserType.SELLER || createUserDTO.getType() == UserType.TENANT || createUserDTO.getType() == UserType.LANDLORD) {
+            return createUserUseCase.createIndividualUser(
+                    createUserDTO.getFirstName(),
+                    createUserDTO.getLastName(),
+                    createUserDTO.getEmail(),
+                    createUserDTO.getPhoneNumber(),
+                    createUserDTO.getType()
+            );
+        } else {
+            return createUserUseCase.createCorporateUser(
+                    createUserDTO.getFirstName(),
+                    createUserDTO.getLastName(),
+                    createUserDTO.getEmail(),
+                    createUserDTO.getPhoneNumber(),
+                    createUserDTO.getType(),
+                    createUserDTO.getCompanyName(),
+                    createUserDTO.getRegistrationNumber()
+            );
+        }
     }
 
     @Mutation
