@@ -1,11 +1,12 @@
 package com.kaya.application.port.in.user;
 
-import com.kaya.application.dto.AbstractCreateUserDTO;
 import com.kaya.domain.model.User;
 import com.kaya.domain.model.enums.UserType;
 import com.kaya.domain.model.enums.AuthMethod;
 import io.smallrye.mutiny.Uni;
 
 public interface CreateUserUseCase {
-    Uni<User> createUser(AbstractCreateUserDTO dto);
+    Uni<User> createIndividualUser(String firstName, String lastName, String email, String phoneNumber, UserType type);
+    Uni<User> createIndividualUserWithExternalAuth(String email, UserType type, AuthMethod authMethod, String externalId);
+    Uni<User> createCorporateUser(String firstName, String lastName, String email, String phoneNumber, UserType type, String companyName, String registrationNumber);
 }
