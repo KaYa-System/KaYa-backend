@@ -2,6 +2,7 @@ package com.kaya.domain.model;
 
 import com.kaya.domain.model.enums.PropertyStatus;
 import com.kaya.domain.model.enums.PropertyType;
+import io.quarkus.hibernate.reactive.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -17,7 +18,7 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class Property {
+public class Property extends PanacheEntityBase {
     @Id
     @GeneratedValue
     private UUID id;
