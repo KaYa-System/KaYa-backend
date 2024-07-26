@@ -1,53 +1,40 @@
 package com.kaya.infrastructure.adapters.in.graphql;
 
-import com.kaya.application.dto.CreateUserDTO;
-import com.kaya.application.dto.SetPinDTO;
-import com.kaya.application.dto.UserProfileDTO;
-import com.kaya.application.dto.VerifyPhoneDTO;
-import com.kaya.application.port.in.user.*;
+import com.kaya.application.dto.AbstractCreateUserDTO;
+import com.kaya.application.service.UserService;
+import com.kaya.domain.exception.EmailAlreadyInUseException;
+import com.kaya.domain.exception.PhoneNumberAlreadyInUseException;
 import com.kaya.domain.model.User;
 import io.smallrye.mutiny.Uni;
 import org.eclipse.microprofile.graphql.*;
+import org.jboss.logging.Logger;
 
 import jakarta.inject.Inject;
-import java.util.UUID;
+import jakarta.validation.Valid;
 
 @GraphQLApi
 public class UserGraphQLResource {
 
     @Inject
-    CreateUserUseCase createUserUseCase;
+    UserService userService;
 
     @Inject
-    CompleteUserProfileUseCase completeUserProfileUseCase;
-
-    @Inject
-    VerifyPhoneNumberUseCase verifyPhoneNumberUseCase;
-
-    @Inject
-    SetUserPinUseCase setUserPinUseCase;
+    Logger logger;
 
     @Mutation
     @Description("Create a new user")
-    public Uni<User> createUser(@Name("user") CreateUserDTO createUserDTO) {
-        return createUserUseCase.createIndividualUser(createUserDTO.getPhoneNumber(), createUserDTO.getType());
-    }
-
-    @Mutation
-    @Description("Complete user profile")
-    public Uni<User> completeProfile(@Name("userId") UUID userId, @Name("profile") UserProfileDTO profileDTO) {
-        return completeUserProfileUseCase.completeProfile(userId, profileDTO);
-    }
-
-    @Mutation
-    @Description("Verify phone number")
-    public Uni<Boolean> verifyPhoneNumber(@Name("verifyPhone") VerifyPhoneDTO verifyPhoneDTO) {
-        return verifyPhoneNumberUseCase.verifyOTP(verifyPhoneDTO.getPhoneNumber(), verifyPhoneDTO.getOtp());
-    }
-
-    @Mutation
-    @Description("Set user PIN")
-    public Uni<User> setUserPin(@Name("userId") UUID userId, @Name("pin") SetPinDTO setPinDTO) {
-        return setUserPinUseCase.setPinCode(userId, setPinDTO.getPinCode());
+    public Uni<User> createUser(@Valid @Name("user") AbstractCreateUserDTO createUserDTO) {
+        logger.info("Received GraphQL request to create user");
+        return userService.createUser(createUserDTO)
+                .onFailure().transform(ex -> {
+                    logger.error("Failed to create user", ex);
+                    if (ex instanceof EmailAlreadyInUseException) {
+                        return new GraphQLException("Email already in use");
+                    } else if (ex instanceof PhoneNumberAlreadyInUseException) {
+                        return new GraphQLException("Phone number already in use");
+                    } else {
+                        return new GraphQLException("Failed to create user");
+                    }
+                });
     }
 }

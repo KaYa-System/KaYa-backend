@@ -1,60 +1,63 @@
 package com.kaya.infrastructure.adapters.in.rest;
 
-import com.kaya.application.dto.CreateUserDTO;
-import com.kaya.application.dto.SetPinDTO;
-import com.kaya.application.dto.VerifyPhoneDTO;
-import com.kaya.application.port.in.user.*;
-import com.kaya.application.dto.UserProfileDTO;
+import com.kaya.application.dto.AbstractCreateUserDTO;
+import com.kaya.application.service.UserService;
+import com.kaya.domain.exception.EmailAlreadyInUseException;
+import com.kaya.domain.exception.PhoneNumberAlreadyInUseException;
 import com.kaya.domain.model.User;
-import com.kaya.domain.model.enums.UserType;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.inject.Inject;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import io.smallrye.mutiny.Uni;
-import org.jboss.resteasy.reactive.RestPath;
 
-import java.util.UUID;
+import org.jboss.logging.Logger;
 
 @Path("/users")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
+@Tag(name = "User", description = "User management operations")
 public class UserResource {
+
     @Inject
-    CreateUserUseCase createUserUseCase;
+    UserService userService;
+
     @Inject
-    CompleteUserProfileUseCase completeUserProfileUseCase;
-    @Inject
-    VerifyPhoneNumberUseCase verifyPhoneNumberUseCase;
-    @Inject
-    SetUserPinUseCase setUserPinUseCase;
+    Logger logger;
 
     @POST
-    public Uni<Response> createUser(CreateUserDTO createUserDTO) {
-        return createUserUseCase.createIndividualUser(createUserDTO.getPhoneNumber(), createUserDTO.getType())
-                .onItem().transform(user -> Response.status(Response.Status.CREATED).entity(user).build());
+    @Operation(summary = "Create a new user", description = "Creates a new user with the given details")
+    @ApiResponse(responseCode = "201", description = "User created successfully",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = User.class)))
+    @ApiResponse(responseCode = "400", description = "Invalid input")
+    public Uni<Response> createUser(@Valid @Parameter(description = "User details to be created", required = true) AbstractCreateUserDTO createUserDTO) {
+        logger.info("Received request to create user");
+        return userService.createUser(createUserDTO)
+                .onItem().transform(user -> Response.status(Response.Status.CREATED).entity(user).build())
+                .onFailure().recoverWithItem(this::handleCreateUserFailure);
     }
 
-    @PUT
-    @Path("/{userId}/profile")
-    public Uni<Response> completeProfile(@RestPath UUID userId, UserProfileDTO profileDTO) {
-        return completeUserProfileUseCase.completeProfile(userId, profileDTO)
-                .onItem().transform(user -> Response.ok(user).build())
-                .onFailure().recoverWithItem(throwable -> Response.status(Response.Status.BAD_REQUEST).build());
-    }
-
-    @POST
-    @Path("/verify-phone")
-    public Uni<Response> verifyPhoneNumber(VerifyPhoneDTO verifyPhoneDTO) {
-        return verifyPhoneNumberUseCase.verifyOTP(verifyPhoneDTO.getPhoneNumber(), verifyPhoneDTO.getOtp())
-                .onItem().transform(isValid -> isValid ? Response.ok().build() : Response.status(Response.Status.BAD_REQUEST).build());
-    }
-
-    @POST
-    @Path("/{userId}/set-pin")
-    public Uni<Response> setUserPin(@RestPath UUID userId, SetPinDTO setPinDTO) {
-        return setUserPinUseCase.setPinCode(userId, setPinDTO.getPinCode())
-                .onItem().transform(user -> Response.ok(user).build())
-                .onFailure().recoverWithItem(throwable -> Response.status(Response.Status.BAD_REQUEST).build());
+    private Response handleCreateUserFailure(Throwable throwable) {
+        logger.error("Failed to create user", throwable);
+        if (throwable instanceof EmailAlreadyInUseException) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(new ApiExceptionHandler.ErrorResponse("Email already in use", "EMAIL_ALREADY_IN_USE"))
+                    .build();
+        } else if (throwable instanceof PhoneNumberAlreadyInUseException) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(new ApiExceptionHandler.ErrorResponse("Phone number already in use", "PHONE_NUMBER_ALREADY_IN_USE"))
+                    .build();
+        } else {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(new ApiExceptionHandler.ErrorResponse(throwable.getMessage(), "USER_CREATION_FAILED"))
+                    .build();
+        }
     }
 }

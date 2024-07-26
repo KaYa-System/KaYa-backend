@@ -1,24 +1,35 @@
 package com.kaya.application.service;
 
+import com.kaya.application.dto.AbstractCreateUserDTO;
+import com.kaya.application.dto.CreateCorporateUserDTO;
+import com.kaya.application.dto.CreateIndividualUserDTO;
 import com.kaya.application.dto.UserProfileDTO;
 import com.kaya.application.port.in.user.*;
 import com.kaya.application.port.out.UserRepository;
-import com.kaya.domain.model.User;
-import com.kaya.domain.model.IndividualUser;
 import com.kaya.domain.model.CorporateUser;
+import com.kaya.domain.model.IndividualUser;
+import com.kaya.domain.model.User;
 import com.kaya.domain.model.enums.AuthMethod;
-import com.kaya.domain.model.enums.UserType;
+import com.kaya.domain.exception.DomainException;
+import com.kaya.domain.exception.EmailAlreadyInUseException;
+import com.kaya.domain.exception.PhoneNumberAlreadyInUseException;
+import com.kaya.infrastructure.entities.CorporateUserEntity;
+import com.kaya.infrastructure.entities.IndividualUserEntity;
 import com.kaya.infrastructure.external.OTPService;
 import com.kaya.infrastructure.external.ExternalAuthService;
+import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.unchecked.Unchecked;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.jboss.logging.Logger;
+import org.modelmapper.ModelMapper;
+
 
 import java.util.UUID;
 
 @ApplicationScoped
-class UserService implements CreateUserUseCase, VerifyPhoneNumberUseCase, SetUserPinUseCase, AuthenticateUserUseCase, CompleteUserProfileUseCase {
+public class UserService implements CreateUserUseCase, VerifyPhoneNumberUseCase, SetUserPinUseCase, AuthenticateUserUseCase, CompleteUserProfileUseCase {
 
     @Inject
     UserRepository userRepository;
@@ -27,6 +38,11 @@ class UserService implements CreateUserUseCase, VerifyPhoneNumberUseCase, SetUse
     OTPService otpService;
 
     @Inject
+    ModelMapper modelMapper;
+
+    @Inject
+    Logger logger;
+    @Inject
     ExternalAuthService externalAuthService;
 
     @Override
@@ -34,10 +50,9 @@ class UserService implements CreateUserUseCase, VerifyPhoneNumberUseCase, SetUse
         return userRepository.findByPhoneNumber(phoneNumber)
                 .onItem().transform(Unchecked.function(user -> {
                     if (user instanceof IndividualUser && ((IndividualUser) user).getPinCode().equals(pinCode)) {
-                        // Générer et retourner un token JWT
                         return generateJwtToken(user);
                     } else {
-                        throw new SecurityException("Invalid credentials");
+                        throw new DomainException("Invalid credentials", DomainException.ErrorCode.UNAUTHORIZED_ACCESS);
                     }
                 }));
     }
@@ -46,65 +61,58 @@ class UserService implements CreateUserUseCase, VerifyPhoneNumberUseCase, SetUse
     public Uni<String> authenticateWithExternalProvider(AuthMethod authMethod, String externalToken) {
         return externalAuthService.validateToken(authMethod, externalToken)
                 .onItem().transformToUni(externalId -> userRepository.findByExternalId(authMethod, externalId))
-                .onItem().transform(this::generateJwtToken);
+                .onItem().transform(this::generateJwtToken)
+                .onFailure().transform(e -> new DomainException("Authentication failed", DomainException.ErrorCode.UNAUTHORIZED_ACCESS));
     }
 
     @Override
     public Uni<User> completeProfile(UUID userId, UserProfileDTO profileData) {
         return userRepository.findById(userId)
+                .onItem().ifNull().failWith(() -> new DomainException("User not found", DomainException.ErrorCode.ENTITY_NOT_FOUND))
                 .onItem().transform(user -> {
                     updateUserFromProfileData(user, profileData);
                     return user;
                 })
-                .onItem().transformToUni(userRepository::save);
+                .onItem().transformToUni(userRepository::save)
+                .onFailure().transform(e -> new DomainException("Failed to update profile", DomainException.ErrorCode.GENERAL_ERROR));
     }
 
     @Override
-    public Uni<User> createIndividualUser(String phoneNumber, UserType type) {
-        IndividualUser user = new IndividualUser();
-        user.setPhoneNumber(phoneNumber);
-        user.setType(type);
-        user.setAuthMethod(AuthMethod.PHONE);
-        return userRepository.save(user);
+    @WithSession
+    public Uni<User> createUser(AbstractCreateUserDTO dto) {
+        return Uni.createFrom().item(Unchecked.supplier(() -> {
+                    User user;
+                    if (dto instanceof CreateCorporateUserDTO) {
+                        user = modelMapper.map(dto, CorporateUser.class);
+                    } else if (dto instanceof CreateIndividualUserDTO) {
+                        user = modelMapper.map(dto, IndividualUser.class);
+                    } else {
+                        throw new DomainException("Invalid DTO type", DomainException.ErrorCode.INVALID_INPUT);
+                    }
+                    return user;
+                })).onItem().transformToUni(userRepository::save)
+                .onFailure().transform(e -> new DomainException(e.getMessage(), DomainException.ErrorCode.GENERAL_ERROR));
     }
 
-    @Override
-    public Uni<User> createIndividualUserWithExternalAuth(String email, UserType type, AuthMethod authMethod, String externalId) {
-        IndividualUser user = new IndividualUser();
-        user.setEmail(email);
-        user.setType(type);
-        user.setAuthMethod(authMethod);
-        user.setExternalId(externalId);
-        return userRepository.save(user);
-    }
-
-    @Override
-    public Uni<User> createCorporateUser(String email, UserType type, String companyName, String companyRegistrationNumber) {
-        CorporateUser user = new CorporateUser();
-        user.setEmail(email);
-        user.setType(type);
-        user.setCompanyName(companyName);
-        user.setCompanyRegistrationNumber(companyRegistrationNumber);
-        return userRepository.save(user);
-    }
 
     @Override
     public Uni<User> setPinCode(UUID userId, String pinCode) {
         return userRepository.findById(userId)
-                .onItem().transform(Unchecked.function(user -> {
+                .onItem().ifNull().failWith(() -> new DomainException("User not found", DomainException.ErrorCode.ENTITY_NOT_FOUND))
+                .onItem().transformToUni(Unchecked.function(user -> {
                     if (user instanceof IndividualUser) {
                         ((IndividualUser) user).setPinCode(pinCode);
-                        return user;
+                        return userRepository.save(user);
                     } else {
-                        throw new IllegalArgumentException("PIN can only be set for individual users");
+                        throw new DomainException("PIN can only be set for individual users", DomainException.ErrorCode.INVALID_INPUT);
                     }
-                }))
-                .onItem().transformToUni(userRepository::save);
+                }));
     }
 
     @Override
     public Uni<Boolean> sendOTP(String phoneNumber) {
-        return otpService.generateAndSendOTP(phoneNumber);
+        return otpService.generateAndSendOTP(phoneNumber)
+                .onFailure().recoverWithUni(e -> Uni.createFrom().failure(new DomainException("Failed to send OTP", DomainException.ErrorCode.GENERAL_ERROR)));
     }
 
     @Override
@@ -113,16 +121,17 @@ class UserService implements CreateUserUseCase, VerifyPhoneNumberUseCase, SetUse
                 .onItem().transformToUni(isValid -> {
                     if (isValid) {
                         return userRepository.findByPhoneNumber(phoneNumber)
-                                .onItem().transform(user -> {
+                                .onItem().ifNull().failWith(() -> new DomainException("User not found", DomainException.ErrorCode.ENTITY_NOT_FOUND))
+                                .onItem().transformToUni(user -> {
                                     user.setVerified(true);
-                                    return user;
-                                })
-                                .onItem().transformToUni(userRepository::save)
-                                .onItem().transform(user -> true);
+                                    return userRepository.save(user)
+                                            .onItem().transform(savedUser -> true);
+                                });
                     } else {
                         return Uni.createFrom().item(false);
                     }
-                });
+                })
+                .onFailure().recoverWithUni(e -> Uni.createFrom().failure(new DomainException("Failed to verify OTP", DomainException.ErrorCode.GENERAL_ERROR)));
     }
 
     private String generateJwtToken(User user) {
@@ -157,4 +166,5 @@ class UserService implements CreateUserUseCase, VerifyPhoneNumberUseCase, SetUse
         user.setPreferredPropertyType(profileData.getPreferredPropertyType());
         user.setPreferredAmenities(profileData.getPreferredAmenities());
     }
+
 }
