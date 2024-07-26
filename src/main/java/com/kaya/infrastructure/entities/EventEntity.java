@@ -1,30 +1,40 @@
-package com.kaya.domain.model;
+package com.kaya.infrastructure.entities;
 
 import com.kaya.domain.model.enums.EventStatus;
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+@Entity
 @Getter
 @Setter
-public class Event {
-
+@NoArgsConstructor
+@AllArgsConstructor
+@Table(name = "event")
+public class EventEntity {
+    @Id
+    @GeneratedValue
     private UUID id;
 
     private String name;
 
-
-    private Property venue;
+    @ManyToOne
+    private PropertyEntity venue;
 
     private LocalDateTime startDateTime;
     private LocalDateTime endDateTime;
     private int capacity;
     private BigDecimal price;
 
-    private User organizer;
+    @ManyToOne
+    private UserEntity organizer;
 
+    @Enumerated(EnumType.STRING)
     private EventStatus status;
 }
