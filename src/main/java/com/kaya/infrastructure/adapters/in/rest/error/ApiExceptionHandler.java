@@ -1,11 +1,10 @@
 
-package com.kaya.infrastructure.adapters.in.rest;
+package com.kaya.infrastructure.adapters.in.rest.error;
 
 import com.kaya.domain.exception.ApiException;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
-import lombok.Getter;
 
 @Provider
 public class ApiExceptionHandler implements ExceptionMapper<ApiException> {
