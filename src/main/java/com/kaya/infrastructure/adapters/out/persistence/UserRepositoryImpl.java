@@ -1,7 +1,5 @@
 package com.kaya.infrastructure.adapters.out.persistence;
 
-import com.kaya.application.dto.CreateCorporateUserDTO;
-import com.kaya.application.dto.CreateIndividualUserDTO;
 import com.kaya.application.port.out.UserRepository;
 import com.kaya.domain.exception.DomainException;
 import com.kaya.domain.model.User;

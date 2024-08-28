@@ -2,9 +2,10 @@ package com.kaya.infrastructure.adapters.in.rest;
 
 import com.kaya.application.dto.AbstractCreateUserDTO;
 import com.kaya.application.service.UserService;
-import com.kaya.domain.exception.EmailAlreadyInUseException;
-import com.kaya.domain.exception.PhoneNumberAlreadyInUseException;
 import com.kaya.domain.model.User;
+import com.kaya.infrastructure.adapters.in.rest.error.ErrorHandler;
+import com.kaya.infrastructure.adapters.in.rest.error.ErrorResponse;
+import io.smallrye.mutiny.Uni;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -16,8 +17,6 @@ import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import io.smallrye.mutiny.Uni;
-
 import org.jboss.logging.Logger;
 
 @Path("/users")
@@ -28,6 +27,9 @@ public class UserResource {
 
     @Inject
     UserService userService;
+
+    @Inject
+    ErrorHandler errorHandler;
 
     @Inject
     Logger logger;
@@ -46,18 +48,7 @@ public class UserResource {
 
     private Response handleCreateUserFailure(Throwable throwable) {
         logger.error("Failed to create user", throwable);
-        if (throwable instanceof EmailAlreadyInUseException) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(new ApiExceptionHandler.ErrorResponse("Email already in use", "EMAIL_ALREADY_IN_USE"))
-                    .build();
-        } else if (throwable instanceof PhoneNumberAlreadyInUseException) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(new ApiExceptionHandler.ErrorResponse("Phone number already in use", "PHONE_NUMBER_ALREADY_IN_USE"))
-                    .build();
-        } else {
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(new ApiExceptionHandler.ErrorResponse(throwable.getMessage(), "USER_CREATION_FAILED"))
-                    .build();
-        }
+        ErrorResponse errorResponse = errorHandler.handleException(throwable);
+        return Response.status(errorResponse.getStatus()).entity(errorResponse).build();
     }
 }
