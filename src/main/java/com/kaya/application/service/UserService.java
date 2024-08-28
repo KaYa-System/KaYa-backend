@@ -16,6 +16,7 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 import org.modelmapper.ModelMapper;
 
+import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -48,6 +49,29 @@ public class UserService implements UserUseCases {
                 });
     }
 
+    @Override
+    @WithSession
+    public Uni<User> getUserById(UUID userId) {
+        return userRepository.findById(userId);
+    }
+
+    @Override
+    @WithSession
+    public Uni<User> getUserByPhoneNumber(String phoneNumber) {
+        return userRepository.findByPhoneNumber(phoneNumber);
+    }
+
+    @Override
+    @WithSession
+    public Uni<User> getUserByEmail(String email) {
+        return userRepository.findByEmail(email);
+    }
+
+    @Override
+    @WithSession
+    public Uni<List<User>> getUsers(int page, int size) {
+        return userRepository.findPage(page, size);
+    }
     @Override
     public Uni<User> completeProfile(UUID userId, UserProfileDTO profileData) {
         logger.info("Completing profile for user ID: " + userId);

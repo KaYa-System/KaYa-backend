@@ -10,13 +10,17 @@ import com.kaya.domain.model.enums.UserType;
 import com.kaya.infrastructure.entities.CorporateUserEntity;
 import com.kaya.infrastructure.entities.IndividualUserEntity;
 import com.kaya.infrastructure.entities.UserEntity;
+import io.quarkus.hibernate.reactive.panache.PanacheQuery;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
+import io.quarkus.panache.common.Page;
 import io.smallrye.mutiny.Uni;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.modelmapper.ModelMapper;
 
 import jakarta.inject.Inject;
+
+import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -41,6 +45,17 @@ public class UserRepositoryImpl implements UserRepository {
                 .map(this::mapToDomainUser);
     }
 
+
+    @Override
+    public Uni<List<User>> findPage(int page, int size) {
+        PanacheQuery<UserEntity> query = userEntityRepository.findAll();
+        return query.page(Page.of(page, size)).list()
+                .map(userEntities -> userEntities.stream()
+                        .map(this::mapToDomainUser)
+                        .toList());
+    }
+
+
     @Override
     public Uni<User> findByPhoneNumber(String phoneNumber) {
         return userEntityRepository.find("phoneNumber", phoneNumber).firstResult()
@@ -52,6 +67,7 @@ public class UserRepositoryImpl implements UserRepository {
         return userEntityRepository.find("authMethod = ?1 and externalId = ?2", authMethod, externalId).firstResult()
                 .map(this::mapToDomainUser);
     }
+
 
     @WithSession
     @Override
@@ -90,7 +106,7 @@ public class UserRepositoryImpl implements UserRepository {
 
     private User mapToDomainUser(UserEntity entity) {
         if (entity == null) {
-            throw new DomainException("Entity is null", DomainException.ErrorCode.ENTITY_NOT_FOUND);
+            throw new DomainException("User not found", DomainException.ErrorCode.ENTITY_NOT_FOUND);
         }
 
         if (entity.getType() == UserType.CORPORATE) {
