@@ -70,6 +70,9 @@ public class UserService implements UserUseCases {
     @Override
     @WithSession
     public Uni<List<User>> getUsers(int page, int size) {
+        if (page < 0 || size <= 0) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Invalid pagination parameters. Page must be non-negative and size must be positive."));
+        }
         return userRepository.findPage(page, size);
     }
     @Override

@@ -48,8 +48,7 @@ public class UserRepositoryImpl implements UserRepository {
 
     @Override
     public Uni<List<User>> findPage(int page, int size) {
-        PanacheQuery<UserEntity> query = userEntityRepository.findAll();
-        return query.page(Page.of(page, size)).list()
+        return userEntityRepository.findAll().page(Page.of(page, size)).list()
                 .map(userEntities -> userEntities.stream()
                         .map(this::mapToDomainUser)
                         .toList());
