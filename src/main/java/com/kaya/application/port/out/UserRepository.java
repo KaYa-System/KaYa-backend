@@ -15,4 +15,6 @@ public interface UserRepository {
     Uni<User> findByExternalId(AuthMethod authMethod, String externalId);
     Uni<User> save(User user);
     Uni<Void> delete(UUID id);
+
+    Uni<User> update(UUID userId, User user);
 }

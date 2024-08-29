@@ -1,6 +1,7 @@
 package com.kaya.infrastructure.adapters.in.rest;
 
 import com.kaya.application.dto.AbstractCreateUserDTO;
+import com.kaya.application.dto.UpdateUserDTO;
 import com.kaya.application.service.UserService;
 import com.kaya.domain.exception.DomainException;
 import com.kaya.domain.model.User;
@@ -80,7 +81,6 @@ public class UserResource {
                 .onItem().ifNotNull().transform(user -> Response.ok(user).build());
     }
 
-    // TODO: Implement GET /users (get users with filtering and pagination)
     @GET
     public Uni<Response> getUsers(@QueryParam("page") int page, @QueryParam("size") int size) {
         // Implementation to be added
@@ -88,12 +88,13 @@ public class UserResource {
                 .onItem().ifNotNull().transform(users -> Response.ok(users).build());
     }
 
-    // TODO: Implement PUT /users/{id} (update a user)
+
     @PUT
     @Path("/{id}")
-    public Uni<Response> updateUser(@PathParam("id") String id, User user) {
+    public Uni<Response> updateUser(@PathParam("id") UUID id, UpdateUserDTO user) {
         // Implementation to be added
-        return null;
+        return userService.updateUser(id, user)
+                .onItem().ifNotNull().transform(updatedUser -> Response.ok(updatedUser).build());
     }
 
     // TODO: Implement DELETE /users/{id} (soft delete a user)

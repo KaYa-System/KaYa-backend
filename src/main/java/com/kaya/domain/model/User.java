@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -54,4 +55,8 @@ public abstract class User {
     protected String preferredPropertyType;
 
     protected String preferredAmenities;
+
+    protected LocalDateTime createdAt;
+
+    protected LocalDateTime updatedAt;
 }

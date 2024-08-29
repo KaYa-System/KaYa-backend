@@ -1,6 +1,7 @@
 package com.kaya.application.port.in.user;
 
 import com.kaya.application.dto.AbstractCreateUserDTO;
+import com.kaya.application.dto.UpdateUserDTO;
 import com.kaya.domain.model.User;
 import io.smallrye.mutiny.Uni;
 
@@ -17,5 +18,7 @@ public interface UserUseCases extends CreateUserUseCase, VerifyPhoneNumberUseCas
     Uni<User> getUserByPhoneNumber(String phoneNumber);
 
     Uni<List<User>> getUsers(int page, int size);
+
+    Uni<User> updateUser(UUID userId, UpdateUserDTO dto);
 
 }

@@ -10,7 +10,6 @@ import com.kaya.domain.model.enums.UserType;
 import com.kaya.infrastructure.entities.CorporateUserEntity;
 import com.kaya.infrastructure.entities.IndividualUserEntity;
 import com.kaya.infrastructure.entities.UserEntity;
-import io.quarkus.hibernate.reactive.panache.PanacheQuery;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.panache.common.Page;
 import io.smallrye.mutiny.Uni;
@@ -102,6 +101,21 @@ public class UserRepositoryImpl implements UserRepository {
         return userEntityRepository.deleteById(id)
                 .onItem().transformToUni(deleted -> deleted ? Uni.createFrom().voidItem() : Uni.createFrom().failure(new IllegalArgumentException("User not found")));
     }
+
+    @Override
+    public Uni<User> update(UUID userId, User user) {
+        return userEntityRepository.findById(userId)
+                .onItem().ifNull().failWith(() -> new DomainException("User not found", DomainException.ErrorCode.ENTITY_NOT_FOUND))
+                .onItem().ifNotNull().transformToUni(existingEntity -> {
+                    UserEntity updatedEntity = mapToUserEntity(user);
+                    updatedEntity.setId(userId);  // Ensure the ID is set
+                    return userEntityRepository.getSession()
+                            .flatMap(session -> session.merge(updatedEntity))
+                            .flatMap(mergedEntity -> userEntityRepository.persistAndFlush(mergedEntity)
+                                    .map(this::mapToDomainUser));
+                });
+    }
+
 
     private User mapToDomainUser(UserEntity entity) {
         if (entity == null) {

@@ -75,6 +75,31 @@ public class UserService implements UserUseCases {
         }
         return userRepository.findPage(page, size);
     }
+
+    @Override
+    @WithSession
+    public Uni<User> updateUser(UUID userId, UpdateUserDTO dto) {
+        logger.info("Updating user with ID: " + userId);
+        return userRepository.findById(userId)
+                .onItem().ifNull().failWith(() -> {
+                    logger.warn("User not found for ID: " + userId);
+                    return new DomainException("User not found", DomainException.ErrorCode.ENTITY_NOT_FOUND);
+                })
+                .onItem().transformToUni(existingUser -> {
+                    updateUserFromDTO(existingUser, dto);
+                    return userRepository.update(userId, existingUser);
+                })
+                .onFailure().transform(e -> {
+                    logger.error("Failed to update user", e);
+                    return new DomainException(e.getMessage(), DomainException.ErrorCode.GENERAL_ERROR);
+                });
+    }
+
+    private void updateUserFromDTO(User existingUser, UpdateUserDTO dto) {
+        modelMapper.map(dto, existingUser);
+    }
+
+
     @Override
     public Uni<User> completeProfile(UUID userId, UserProfileDTO profileData) {
         logger.info("Completing profile for user ID: " + userId);

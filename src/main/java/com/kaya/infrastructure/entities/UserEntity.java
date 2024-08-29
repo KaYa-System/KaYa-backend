@@ -13,8 +13,11 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.eclipse.microprofile.graphql.Description;
 import org.eclipse.microprofile.graphql.NonNull;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 
@@ -110,4 +113,14 @@ public abstract class UserEntity extends PanacheEntityBase {
 
     @Description("User's preferred amenities for property searches")
     protected String preferredAmenities;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    @Description("Timestamp of when the user was created")
+    protected LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    @Description("Timestamp of when the user was last updated")
+    protected LocalDateTime updatedAt;
 }
